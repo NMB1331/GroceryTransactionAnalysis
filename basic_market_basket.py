@@ -8,13 +8,17 @@ NOTES:
 - combine date, time, terminal #, storenumber (in file name) into a string to make a unique "transaction id key"
 - down the road, use UPC code instead of item number (more specific)
 
+TODO:
+- scale this shit....somehow. Figure out how to right Mapper/Reducer for FPGrowth
+
 Author: Nathaniel M. Burley
 """
 import sys, os, csv
 import pyfpgrowth
 import heapq
+import pandas as pd
 
-######################################## PRE-PROCESSING #################################
+######################################## PRE-PROCESSING ############################################
 
 # GET OUR COMMAND LINE ARGUEMENTS
 datafile_paths = sys.argv[1:len(sys.argv)]
@@ -45,34 +49,50 @@ def buildTransactionKey(current_row, columns):
     return transaction_key
 
 
-# ITERATE THROUGH FILE, ADDING EVERY TRANSACTION TO AN ARRAY
-basket_items = []
-transactions_list = []
-for f in datafile_paths:
-    with open(f, 'r') as infile:
-        data_csvfile = csv.reader(infile, delimiter='|')
-        rows = [row for row in data_csvfile]
-        columns = rows[0]
-        current_transaction_id = getEntry("TRANSACTION_ID", rows[1], columns)
-        for i in range(1, len(rows)):
-            row = rows[i]
-            if getEntry("TRANSACTION_ID", row, columns) == current_transaction_id:
-                basket_items.append(getEntry("ITEM", row, columns))
-            else:
-                transactions_list.append(basket_items)
-                basket_items = []
-                basket_items.append(str(getEntry("ITEM", row, columns)))
-                current_transaction_id = getEntry("TRANSACTION_ID", row, columns)
-
-# PRINTS A SAMPLE OF THE TRANSACTIONS FOR DEBUGGING
-#for i in range(50, 100):
- #   print(transactions_list[i])
+# Function that reads all datafiles into a pandas dataframe (sorted by ascending transaction IDs)
+def buildDataFrame(infile_list):
+    df = pd.concat([pd.read_csv(f) for f in infile_list], ignore_index = True)
+    df = pd.concat([df.iloc[:,1:2], df.iloc[:,7:8]], axis=1)
+    df = df.sort_values('TRANSACTION_ID')
+    df['UPC'] = df['UPC'].astype('int64')
+    df['TRANSACTION_ID'] = df['TRANSACTION_ID'].astype('int64')
+    return df
 
 
+######################################## READ IN DATA ##############################################
+
+# Data read into data file
+transaction_df = buildDataFrame(datafile_paths)
+#basket_df = transaction_df.merge(transaction_df.groupby('TRANSACTION_ID')['UPC'].apply(list).reset_index())
+print(transaction_df.head(n=20))
+
+# Lists of items in each transaction created
+
+
+
+##################################### BUILD LISTS OF TRANSACTIONS ##################################
+transaction_list = []
+current_basket = []
+current_transactionID = 0
+counter = 0
+for index, row in transaction_df.iterrows():
+    if counter == 0:
+        current_transactionID = row['TRANSACTION_ID']
+        current_basket.append(row['UPC'])
+    else:
+        if current_transactionID == row['TRANSACTION_ID']:
+            current_basket.append(row['UPC'])
+        else:
+            current_transactionID = row['TRANSACTION_ID']
+            transaction_list.append(current_basket)
+            current_basket = [row['UPC']]
+    counter += 1
+print(transaction_list)
+    
 
 ######################################### ASSOCIATION RULE MINING #########################
 # FP-Growth implemented here
-patterns = pyfpgrowth.find_frequent_patterns(transactions_list, 2)
+patterns = pyfpgrowth.find_frequent_patterns(transaction_list, 2)
 rules = pyfpgrowth.generate_association_rules(patterns, 0.9)
 
 # Clean up by removing keys of length 1 (which shouldn't be a thing...)
