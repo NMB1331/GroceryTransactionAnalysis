@@ -6,17 +6,19 @@ Use: python make_list_transaction.py /path/to/raw/data/file1 /path/to/datafile2 
 
 NOTES:
 - combine date, time, terminal #, storenumber (in file name) into a string to make a unique "transaction id key"
-- down the road, use UPC code instead of item number (more specific)
 
 TODO:
 - scale this shit....somehow. Figure out how to right Mapper/Reducer for FPGrowth
+- write
 
 Author: Nathaniel M. Burley
 """
 import sys, os, csv
-import pyfpgrowth
 import heapq
 import pandas as pd
+import matplotlib.pyplot as plt
+
+target_upc = 4011
 
 ######################################## PRE-PROCESSING ############################################
 
@@ -52,10 +54,11 @@ def buildTransactionKey(current_row, columns):
 # Function that reads all datafiles into a pandas dataframe (sorted by ascending transaction IDs)
 def buildDataFrame(infile_list):
     df = pd.concat([pd.read_csv(f) for f in infile_list], ignore_index = True)
-    df = pd.concat([df.iloc[:,1:2], df.iloc[:,7:8]], axis=1)
+    df = pd.concat([df.iloc[:,1:3], df.iloc[:,7:8]], axis=1)
     df = df.sort_values('TRANSACTION_ID')
     df['UPC'] = df['UPC'].astype('int64')
     df['TRANSACTION_ID'] = df['TRANSACTION_ID'].astype('int64')
+    df["Date"] = df["Date"].astype("datetime64")
     return df
 
 
@@ -64,12 +67,22 @@ def buildDataFrame(infile_list):
 # Data read into data file
 transaction_df = buildDataFrame(datafile_paths)
 #basket_df = transaction_df.merge(transaction_df.groupby('TRANSACTION_ID')['UPC'].apply(list).reset_index())
-print(transaction_df.head(n=20))
-
-# Lists of items in each transaction created
+#print(transaction_df.head(n=20))
 
 
 
+##################################### PLOTS HISTOGRAM OF PURCHASES #################################
+
+# Make a data frame with just entries from the target UPC
+is_target = transaction_df['UPC'] == target_upc
+target_upc_df = transaction_df[is_target].groupby('Date')
+print(target_upc_df.head(n=50))
+target_upc_df['Date'].count().plot(kind='bar')
+plt.show(block=True)
+
+
+
+"""
 ##################################### BUILD LISTS OF TRANSACTIONS ##################################
 transaction_list = []
 current_basket = []
@@ -87,7 +100,6 @@ for index, row in transaction_df.iterrows():
             transaction_list.append(current_basket)
             current_basket = [row['UPC']]
     counter += 1
-print(transaction_list)
     
 
 ######################################### ASSOCIATION RULE MINING #########################
@@ -102,3 +114,4 @@ for tup in list(rules):
 
 for tup in rules:
     print("Items: {}".format(tup))
+"""

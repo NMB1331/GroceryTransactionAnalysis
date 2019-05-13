@@ -1,3 +1,4 @@
 Things to do:
 - Market Basket Analysis (items commonly purchased together)
-- Volume trends (patterns in high volume of sales)
+- Volume trends (patterns in high volume of sales) (think scheduling- when are we busy, when are we not?)
+- simple "growth" (think trending posts in social media) (10 fastest growing)
