@@ -17,6 +17,7 @@ import sys, os, csv
 import heapq
 import pandas as pd
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 target_upc = 4011
 
@@ -62,6 +63,13 @@ def buildDataFrame(infile_list):
     return df
 
 
+# Function that turns the date row into number of days since the earliest date
+def convertDate(earliest_date, row_date):
+    num_days = row_date - earliest_date
+    #print(num_days.days)
+    return num_days.days
+
+
 ######################################## READ IN DATA ##############################################
 
 # Data read into data file
@@ -72,13 +80,48 @@ transaction_df = buildDataFrame(datafile_paths)
 
 
 ##################################### PLOTS HISTOGRAM OF PURCHASES #################################
-
+"""
 # Make a data frame with just entries from the target UPC
 is_target = transaction_df['UPC'] == target_upc
 target_upc_df = transaction_df[is_target].groupby('Date')
 print(target_upc_df.head(n=50))
 target_upc_df['Date'].count().plot(kind='bar')
 plt.show(block=True)
+"""
+
+################################### CALCULATE FASTEST GROWING PRODUCTS #############################
+# - Get list of unique UPCs 
+# - For each UPC: Filter rows by that, Count sales per week, Figure out trend (regression line slope)
+# - To figure out the regression line: 
+    # X values: Number of days since the first sale
+    # Y values: Number of sales on that day
+
+# Gather a list of unique UPCs
+items = transaction_df['UPC'].unique()
+
+# Make a dataframe for each UPC
+for upc in items:
+    is_target = transaction_df['UPC'] == upc
+    og_upc_df = transaction_df[is_target]    #target_upc_df = og_upc_df.groupby('Date')
+    num_unique_dates = len(og_upc_df.groupby('Date')['Date'].unique())
+    
+    # Now that we have entries with enough dates, we will calculate the regression slope for each
+    if num_unique_dates > 2:
+        # X values computed here
+        earliest_date = og_upc_df['Date'].min()
+        og_upc_df['X_Vals'] = og_upc_df.apply(lambda x: convertDate(earliest_date, x['Date']), axis=1)
+        #print(og_upc_df.groupby('Date').head(n=10))
+
+        # Y values computed here
+        reg_vals = pd.DataFrame()
+        reg_vals['X'] = og_upc_df['X_Vals'].unique()
+        reg_vals['Y'] = reg_vals['X'].map(og_upc_df['X_Vals'].value_counts())
+        print(reg_vals.head(n=5))
+
+        # Regression coefficient computed here
+
+        
+        
 
 
 
