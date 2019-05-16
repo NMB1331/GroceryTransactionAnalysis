@@ -8,8 +8,8 @@ NOTES:
 - combine date, time, terminal #, storenumber (in file name) into a string to make a unique "transaction id key"
 
 TODO:
+- move code for fastest growing items into new file
 - scale this shit....somehow. Figure out how to right Mapper/Reducer for FPGrowth
-- write
 
 Author: Nathaniel M. Burley
 """
@@ -116,9 +116,19 @@ for upc in items:
         reg_vals = pd.DataFrame()
         reg_vals['X'] = og_upc_df['X_Vals'].unique()
         reg_vals['Y'] = reg_vals['X'].map(og_upc_df['X_Vals'].value_counts())
-        print(reg_vals.head(n=5))
+        #print(reg_vals.head(n=5))
 
-        # Regression coefficient computed here
+        # Regression coefficient computed here (using scikit learn, and then coefficients extracted) using .coef_
+        # Also can be computed manually using least squares (https://stattrek.com/multiple-regression/regression-coefficients.aspx)
+        x_mean = reg_vals['X'].mean()
+        y_mean = reg_vals['Y'].mean()
+        reg_vals['X_Min_Mean'] = reg_vals['X'] - x_mean
+        reg_vals['X_Min_Mean_Sqrd'] = (reg_vals['X'] - x_mean) ** 2
+        reg_vals['Y_Min_Mean'] = reg_vals['Y'] - y_mean
+        reg_vals['(Xi-X)(Yi-Y)'] = reg_vals['X_Min_Mean'] * reg_vals['Y_Min_Mean']
+        reg_coef = sum(reg_vals['(Xi-X)(Yi-Y)']) / sum(reg_vals['X_Min_Mean_Sqrd'])
+        print("Growth rate for {}: {}".format(upc, reg_coef))
+
 
         
         
