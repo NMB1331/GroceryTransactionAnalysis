@@ -1,0 +1,57 @@
+---
+title: "Exploratory Data Analysis of 100k Rows of Super 1 Foods purchased_items"
+author: "Nathaniel Burley"
+date: "December 29, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#library(tidyverse)
+library(readxl)
+library(knitr)
+library(arules)
+library(arulesViz)
+library(dplyr)
+```
+
+## INTRODUCTION/PRE-PROCESSING
+First, we will read in the data from the file and summarize it:
+
+```{r}
+purchased_items = read.csv("file:///C:/Users/NMB1331/AppData/Local/Packages/CanonicalGroupLimited.UbuntuonWindows_79rhkp1fndgsc/LocalState/rootfs/home/nmb1331/GroceryTransactionAnalysis/10k_Sorted_Test_TransactionRows.csv")
+glimpse(purchased_items)
+```
+
+
+## CLEANING, EXPLORATORY ANALYSIS PART 1
+This dataset clearly needs some cleaning. We need to make a column that contains an actual date, not 3 separate fields. We will explore the dataset by finding the most commonly purchased items.
+
+```{r}
+# Eliminate rows with missing data or fields
+purchased_items = purchased_items[complete.cases(purchased_items), ]
+
+# Remove trailing whitespace from product names
+purchased_items$PRODUCT = str_trim(purchased_items$PRODUCT)
+
+# Creates a date column
+purchased_items$Date = as.Date(paste(as.factor(purchased_items$YEAR), as.factor(purchased_items$MonthNumb), as.factor(purchased_items$DayOfMonth),sep="-"), "%Y-%m-%d")
+glimpse(purchased_items)
+
+# Gets the number of unique purchased_items
+num_purchased_items = purchased_items %>% group_by(TRANSACTION_ID) %>% summarize(count=n()) %>% nrow()
+print(sprintf("Total purchased_items in file: %d", num_purchased_items), quote = FALSE)
+
+# Finds the most commonly purchased items
+common_items = tail(names(sort(table(purchased_items$PRODUCT))), 5)
+print("Most commonly purchased items: ", quote = FALSE)
+print(str_trim(common_items))
+
+# Finds the total amount spent in this dataset
+total_revenue = sum(purchased_items$Price)
+print(sprintf("Total revenue in this dataset: %.2f", total_revenue), quote = FALSE)
+
+```
+
+
+

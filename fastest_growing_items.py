@@ -5,6 +5,7 @@ growing items.
 Use: python fastest_growing_items.py /path/to/transaction/file.csv
 
 TODO:
+- Figure out how to split the dataframe by items BEFORE calculating the growth
 - Aggregate and find trends for week, month, year, etc.
 - Make function to plot graphs and trend lines
 - Figure out how to scale (parallelization, MapReduce, etc.)
@@ -17,7 +18,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-target_upc = 4011
 
 ######################################## PRE-PROCESSING ############################################
 
@@ -45,65 +45,70 @@ def convertDate(earliest_date, row_date):
     return num_days.days
 
 
-######################################## READ IN DATA ##############################################
+# Function that aggregates by a given amount of time (week, month, year, etc.)
+def aggByTime(df, time_period):
+    pass
 
-# Data read into data file
-transaction_df = buildDataFrame(datafile_paths)
+
+# Function that computes the growth coefficient for a given dataframe
+# TODO: Write another function that gets the items, and splits up the dataframe by item
+def calculateGrowth(transaction_df):
+    # Gather a list of unique UPCs
+    items = transaction_df['UPC'].unique()
+
+    # Make a dataframe for each UPC
+    for upc in items:
+        is_target = transaction_df['UPC'] == upc
+        og_upc_df = transaction_df[is_target]    #target_upc_df = og_upc_df.groupby('Date')
+        num_unique_dates = len(og_upc_df.groupby('Date')['Date'].unique())
+        
+        # Now that we have entries with enough dates, we will calculate the regression slope for each
+        if num_unique_dates > 7:
+            # X values computed here
+            earliest_date = og_upc_df['Date'].min()
+            og_upc_df['X'] = og_upc_df.apply(lambda x: convertDate(earliest_date, x['Date']), axis=1)
+            #print(og_upc_df.groupby('Date').head(n=10))
+
+            # Regression coefficient computed here (least squares method, link below)
+            #(https://stattrek.com/multiple-regression/regression-coefficients.aspx)
+            #og_upc_df.plot(x='X', y='Quantity', style='o')
+            #plt.show(block=True)
+            x_mean = og_upc_df['X'].mean()
+            y_mean = og_upc_df['Quantity'].mean()
+            og_upc_df['X_Min_Mean'] = og_upc_df['X'] - x_mean
+            og_upc_df['X_Min_Mean_Sqrd'] = (og_upc_df['X'] - x_mean) ** 2
+            og_upc_df['Y_Min_Mean'] = og_upc_df['Quantity'] - y_mean
+            og_upc_df['(Xi-X)(Yi-Y)'] = og_upc_df['X_Min_Mean'] * og_upc_df['Y_Min_Mean']
+            reg_coef = sum(og_upc_df['(Xi-X)(Yi-Y)']) / sum(og_upc_df['X_Min_Mean_Sqrd'])
+            print("Growth rate for {}: {}".format(upc, reg_coef))
+
 
 ################################### CALCULATE FASTEST GROWING PRODUCTS #############################
-# - Get list of unique UPCs 
-# - For each UPC: Filter rows by that, Count sales per week, Figure out trend (regression line slope)
-# - To figure out the regression line: 
-    # X values: Number of days since the first sale
-    # Y values: Number of sales on that day
+if __name__ == "__main__":
+    # Data read into data file
+    transaction_df = buildDataFrame(datafile_paths)
+    calculateGrowth(transaction_df)
 
-# Gather a list of unique UPCs
-items = transaction_df['UPC'].unique()
 
-# Make a dataframe for each UPC
-for upc in items:
-    is_target = transaction_df['UPC'] == upc
-    og_upc_df = transaction_df[is_target]    #target_upc_df = og_upc_df.groupby('Date')
-    num_unique_dates = len(og_upc_df.groupby('Date')['Date'].unique())
-    
-    # Now that we have entries with enough dates, we will calculate the regression slope for each
-    if num_unique_dates > 7:
-        # X values computed here
-        earliest_date = og_upc_df['Date'].min()
-        og_upc_df['X'] = og_upc_df.apply(lambda x: convertDate(earliest_date, x['Date']), axis=1)
-        #print(og_upc_df.groupby('Date').head(n=10))
 
-        # Regression coefficient computed here (least squares method, link below)
-        #(https://stattrek.com/multiple-regression/regression-coefficients.aspx)
-        #og_upc_df.plot(x='X', y='Quantity', style='o')
-        #plt.show(block=True)
-        x_mean = og_upc_df['X'].mean()
-        y_mean = og_upc_df['Quantity'].mean()
-        og_upc_df['X_Min_Mean'] = og_upc_df['X'] - x_mean
-        og_upc_df['X_Min_Mean_Sqrd'] = (og_upc_df['X'] - x_mean) ** 2
-        og_upc_df['Y_Min_Mean'] = og_upc_df['Quantity'] - y_mean
-        og_upc_df['(Xi-X)(Yi-Y)'] = og_upc_df['X_Min_Mean'] * og_upc_df['Y_Min_Mean']
-        reg_coef = sum(og_upc_df['(Xi-X)(Yi-Y)']) / sum(og_upc_df['X_Min_Mean_Sqrd'])
-        print("Growth rate for {}: {}".format(upc, reg_coef))
+"""
+# CODE FOR OLD FILE FORMAT (NO QUANTITY COLUMN)
+# Y values computed here
+reg_vals = pd.DataFrame()
+reg_vals['X'] = og_upc_df['X_Vals'].unique()
+#reg_vals['Y'] = reg_vals['X'].map(og_upc_df['X_Vals'].value_counts())
+reg_vals['Y'] = og_upc_df['Quantity']
+#print(reg_vals.head(n=20))
 
-        """
-        # CODE FOR OLD FILE FORMAT (NO QUANTITY COLUMN)
-        # Y values computed here
-        reg_vals = pd.DataFrame()
-        reg_vals['X'] = og_upc_df['X_Vals'].unique()
-        #reg_vals['Y'] = reg_vals['X'].map(og_upc_df['X_Vals'].value_counts())
-        reg_vals['Y'] = og_upc_df['Quantity']
-        #print(reg_vals.head(n=20))
-    
-        # Regression coefficient computed here (least squares method, link below)
-        #(https://stattrek.com/multiple-regression/regression-coefficients.aspx)
-        x_mean = reg_vals['X'].mean()
-        y_mean = reg_vals['Y'].mean()
-        reg_vals['X_Min_Mean'] = reg_vals['X'] - x_mean
-        reg_vals['X_Min_Mean_Sqrd'] = (reg_vals['X'] - x_mean) ** 2
-        reg_vals['Y_Min_Mean'] = reg_vals['Y'] - y_mean
-        reg_vals['(Xi-X)(Yi-Y)'] = reg_vals['X_Min_Mean'] * reg_vals['Y_Min_Mean']
-        reg_coef = sum(reg_vals['(Xi-X)(Yi-Y)']) / sum(reg_vals['X_Min_Mean_Sqrd'])
-        #print(reg_vals.head(n=5))
-        #print("Growth rate for {}: {}".format(upc, reg_coef))
-        """
+# Regression coefficient computed here (least squares method, link below)
+#(https://stattrek.com/multiple-regression/regression-coefficients.aspx)
+x_mean = reg_vals['X'].mean()
+y_mean = reg_vals['Y'].mean()
+reg_vals['X_Min_Mean'] = reg_vals['X'] - x_mean
+reg_vals['X_Min_Mean_Sqrd'] = (reg_vals['X'] - x_mean) ** 2
+reg_vals['Y_Min_Mean'] = reg_vals['Y'] - y_mean
+reg_vals['(Xi-X)(Yi-Y)'] = reg_vals['X_Min_Mean'] * reg_vals['Y_Min_Mean']
+reg_coef = sum(reg_vals['(Xi-X)(Yi-Y)']) / sum(reg_vals['X_Min_Mean_Sqrd'])
+#print(reg_vals.head(n=5))
+#print("Growth rate for {}: {}".format(upc, reg_coef))
+"""
