@@ -7,6 +7,7 @@ Use: python fastest_growing_items.py /path/to/transaction/file.csv
 TODO:
 - Figure out how to split the dataframe by items BEFORE calculating the growth
 - Aggregate and find trends for week, month, year, etc.
+    https://stackoverflow.com/questions/41625077/python-pandas-split-a-timeserie-per-month-or-week
 - Make function to plot graphs and trend lines
 - Figure out how to scale (parallelization, MapReduce, etc.)
 
@@ -16,7 +17,8 @@ import sys, os, csv
 import heapq
 import pandas as pd
 import matplotlib.pyplot as plt
-from datetime import datetime
+import datetime
+import time
 
 
 ######################################## PRE-PROCESSING ############################################
@@ -34,25 +36,32 @@ def buildDataFrame(infile_list):
     df['UPC'] = df['UPC'].astype('int64')
     df['Quantity'] = df['Quantity'].astype('int64')
     df['TRANSACTION_ID'] = df['TRANSACTION_ID'].astype('int64')
-    df["Date"] = df["Date"].astype("datetime64")
+    df["Date"] = pd.to_datetime(df['Date'])
     return df
 
 
 # Function that turns the date row into number of days since the earliest date
 def convertDate(earliest_date, row_date):
-    num_days = row_date - earliest_date
+    num_days = row_date.to_pydatetime() - earliest_date.to_pydatetime()
     #print(num_days.days)
     return num_days.days
 
 
-# Function that aggregates by a given amount of time (week, month, year, etc.)
-def aggByTime(df, time_period):
-    pass
+# Function that aggregates by a given amount of time (week = 'W', month = 'M')
+def aggByTime(df, time_period, reset=0):
+    if reset:
+        agg_dfs = [g.reset_index() for n, g in df.set_index('Date').groupby(pd.Grouper(freq=time_period))]
+        return agg_dfs
+    else:
+        agg_dfs = [g for n, g in df.set_index('Date').groupby(pd.Grouper(freq=time_period))]
+        return agg_dfs
+    
 
+# Function that makes a dataset for each UPC
+def buildUPCDataFrames(transaction_df):
+    # Dataframes that will be returned
+    upc_dfs = []
 
-# Function that computes the growth coefficient for a given dataframe
-# TODO: Write another function that gets the items, and splits up the dataframe by item
-def calculateGrowth(transaction_df):
     # Gather a list of unique UPCs
     items = transaction_df['UPC'].unique()
 
@@ -62,32 +71,54 @@ def calculateGrowth(transaction_df):
         og_upc_df = transaction_df[is_target]    #target_upc_df = og_upc_df.groupby('Date')
         num_unique_dates = len(og_upc_df.groupby('Date')['Date'].unique())
         
-        # Now that we have entries with enough dates, we will calculate the regression slope for each
-        if num_unique_dates > 7:
-            # X values computed here
-            earliest_date = og_upc_df['Date'].min()
-            og_upc_df['X'] = og_upc_df.apply(lambda x: convertDate(earliest_date, x['Date']), axis=1)
-            #print(og_upc_df.groupby('Date').head(n=10))
+        # Add UPCs with enough dates to the list of valid ones
+        if num_unique_dates > 5:
+            upc_dfs.append(og_upc_df)
+    
+    return upc_dfs
 
-            # Regression coefficient computed here (least squares method, link below)
-            #(https://stattrek.com/multiple-regression/regression-coefficients.aspx)
-            #og_upc_df.plot(x='X', y='Quantity', style='o')
-            #plt.show(block=True)
-            x_mean = og_upc_df['X'].mean()
-            y_mean = og_upc_df['Quantity'].mean()
-            og_upc_df['X_Min_Mean'] = og_upc_df['X'] - x_mean
-            og_upc_df['X_Min_Mean_Sqrd'] = (og_upc_df['X'] - x_mean) ** 2
-            og_upc_df['Y_Min_Mean'] = og_upc_df['Quantity'] - y_mean
-            og_upc_df['(Xi-X)(Yi-Y)'] = og_upc_df['X_Min_Mean'] * og_upc_df['Y_Min_Mean']
-            reg_coef = sum(og_upc_df['(Xi-X)(Yi-Y)']) / sum(og_upc_df['X_Min_Mean_Sqrd'])
-            print("Growth rate for {}: {}".format(upc, reg_coef))
+
+# Function that computes the growth coefficient for a given dataframe
+def calculateGrowth(df):
+    upc = df['UPC'].unique()[0]
+
+    # Regression X values computed here (days since first date)
+    earliest_date = df.index.min()
+    df.reset_index(level=0, inplace=True) #Reset the 'Date' column
+    print("Earliest date: {}".format(earliest_date))
+    df['X'] = df.apply(lambda x: convertDate(earliest_date, x['Date']), axis=1)
+    #print(og_upc_df.groupby('Date').head(n=10))
+
+    # Regression coefficient computed here (least squares method, link below)
+    #(https://stattrek.com/multiple-regression/regression-coefficients.aspx)
+    #og_upc_df.plot(x='X', y='Quantity', style='o')
+    #plt.show(block=True)
+    x_mean = df['X'].mean()
+    y_mean = df['Quantity'].mean()
+    df['X_Min_Mean'] = df['X'] - x_mean
+    df['X_Min_Mean_Sqrd'] = (df['X'] - x_mean) ** 2
+    df['Y_Min_Mean'] = df['Quantity'] - y_mean
+    df['(Xi-X)(Yi-Y)'] = df['X_Min_Mean'] * df['Y_Min_Mean']
+    reg_coef = sum(df['(Xi-X)(Yi-Y)']) / sum(df['X_Min_Mean_Sqrd'])
+    print("Growth rate for {}: {}".format(upc, reg_coef))
 
 
 ################################### CALCULATE FASTEST GROWING PRODUCTS #############################
 if __name__ == "__main__":
     # Data read into data file
-    transaction_df = buildDataFrame(datafile_paths)
-    calculateGrowth(transaction_df)
+    transaction_df_list = buildUPCDataFrames(buildDataFrame(datafile_paths))
+
+    # For debugging
+    print(transaction_df_list[0].head(n=5))
+
+    # Aggregate by week
+    trans_df0_weeks = aggByTime(transaction_df_list[0], 'W')
+
+    # For debugging (again. I wish I was better at this)
+    print(trans_df0_weeks[0].head(n=5))
+
+    # Growth calculated
+    calculateGrowth(trans_df0_weeks[0])
 
 
 
