@@ -29,8 +29,9 @@ print("Reading in files {}...".format(datafile_paths))
 
 
 # Function that reads all datafiles into a pandas dataframe (sorted by ascending transaction IDs)
-def buildDataFrame(infile_list):
-    df = pd.concat([pd.read_csv(f) for f in infile_list], ignore_index = True)
+def buildDataFrame(infile_list, columns):
+    df = pd.concat([pd.read_csv(f, delimiter='|') for f in infile_list], ignore_index = True)
+    df.columns = columns
     df = pd.concat([df.iloc[:,1:3], df.iloc[:,7:8], df.iloc[:,13:16]], axis=1)
     df = df.sort_values('TRANSACTION_ID')
     df['UPC'] = df['UPC'].astype('int64')
@@ -116,9 +117,9 @@ def growthPerWeek(upc_df):
 
 # Function that computes the growth per month
 def growthPerMonth(upc_df):
-    upc_df_weeks = aggByTime(upc_df, 'M')
+    upc_df_month = aggByTime(upc_df, 'M')
     counter = 1
-    for month_df in upc_df_weeks:
+    for month_df in upc_df_month:
         # Growth calculated
         upc, growth = calculateGrowth(month_df)
         print("Growth for UPC {} during month {}: {:.2f}%".format(upc, counter, growth*100))
@@ -129,7 +130,7 @@ def growthPerMonth(upc_df):
 def growthPerYear(upc_df):
     upc_df_years = aggByTime(upc_df, 'Y')
     counter = 1
-    for year_df in upc_df_weeks:
+    for year_df in upc_df_years:
         # Growth calculated
         upc, growth = calculateGrowth(year_df)
         print("Growth for UPC {} during year {}: {:.2f}".format(upc, counter, growth*100))
@@ -140,7 +141,10 @@ def growthPerYear(upc_df):
 ################################### CALCULATE FASTEST GROWING PRODUCTS #############################
 if __name__ == "__main__":
     # Data read into data frame; split up by UPC
-    transaction_df_list = buildUPCDataFrames(buildDataFrame(datafile_paths))
+    columns = ["StoreID", "TRANSACTION_ID", "Date", "TRANS_HOUR", "TRANS_MINUTE", "CASHIER_NUMBER", \
+        "TERMINAL_NUMBER", "UPC", "ProductName", "CATEGORY" , "CATEGORY_SUB", "DEPT_KEY_Name", \
+        "DEPT_MASTER_Name", "Quantity", "Price", "Sales", "DAY_KEY"]
+    transaction_df_list = buildUPCDataFrames(buildDataFrame(datafile_paths, columns))
 
     for upc_df in transaction_df_list:
         # For debugging
@@ -163,6 +167,7 @@ if __name__ == "__main__":
 
 
 """
+StoreID|TRANSACTION_ID|Date|TRANS_HOUR|TRANS_MINUTE|CASHIER_NUMBER|TERMINAL_NUMBER|UPC|Name|CATEGORY|CATEGORY_SUB_KEY_Name|DEPT_KEY_Name|DEPT_MASTER_KEY_Name|Quantity|Price|Sales|DAY_KEY
 # CODE FOR OLD FILE FORMAT (NO QUANTITY COLUMN)
 # Y values computed here
 reg_vals = pd.DataFrame()
