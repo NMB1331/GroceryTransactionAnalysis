@@ -85,7 +85,6 @@ def calculateGrowth(df):
     # Regression X values computed here (days since first date)
     earliest_date = df.index.min()
     df.reset_index(level=0, inplace=True) #Reset the 'Date' column
-    print("Earliest date: {}".format(earliest_date))
     df['X'] = df.apply(lambda x: convertDate(earliest_date, x['Date']), axis=1)
     #print(og_upc_df.groupby('Date').head(n=10))
 
@@ -100,25 +99,66 @@ def calculateGrowth(df):
     df['Y_Min_Mean'] = df['Quantity'] - y_mean
     df['(Xi-X)(Yi-Y)'] = df['X_Min_Mean'] * df['Y_Min_Mean']
     reg_coef = sum(df['(Xi-X)(Yi-Y)']) / sum(df['X_Min_Mean_Sqrd'])
-    print("Growth rate for {}: {}".format(upc, reg_coef))
+    #print("Growth rate for {}: {}".format(upc, reg_coef))
+    return upc, reg_coef
+
+
+# Function that computes growth per week
+def growthPerWeek(upc_df):
+    upc_df_weeks = aggByTime(upc_df, 'W')
+    counter = 1
+    for week_df in upc_df_weeks:
+        # Growth calculated
+        upc, growth = calculateGrowth(week_df)
+        print("Growth for UPC {} during week {}: {:.2f}%".format(upc, counter, growth*100))
+        counter += 1
+
+
+# Function that computes the growth per month
+def growthPerMonth(upc_df):
+    upc_df_weeks = aggByTime(upc_df, 'M')
+    counter = 1
+    for month_df in upc_df_weeks:
+        # Growth calculated
+        upc, growth = calculateGrowth(month_df)
+        print("Growth for UPC {} during month {}: {:.2f}%".format(upc, counter, growth*100))
+        counter += 1
+
+
+# Function that computes growth per year
+def growthPerYear(upc_df):
+    upc_df_years = aggByTime(upc_df, 'Y')
+    counter = 1
+    for year_df in upc_df_weeks:
+        # Growth calculated
+        upc, growth = calculateGrowth(year_df)
+        print("Growth for UPC {} during year {}: {:.2f}".format(upc, counter, growth*100))
+        counter += 1
+
 
 
 ################################### CALCULATE FASTEST GROWING PRODUCTS #############################
 if __name__ == "__main__":
-    # Data read into data file
+    # Data read into data frame; split up by UPC
     transaction_df_list = buildUPCDataFrames(buildDataFrame(datafile_paths))
 
-    # For debugging
-    print(transaction_df_list[0].head(n=5))
+    for upc_df in transaction_df_list:
+        # For debugging
+        #print(upc_df.head(n=5))
 
-    # Aggregate by week
-    trans_df0_weeks = aggByTime(transaction_df_list[0], 'W')
+        # Aggregate by month; compute growth values 
+        # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
+        growthPerMonth(upc_df)
 
-    # For debugging (again. I wish I was better at this)
-    print(trans_df0_weeks[0].head(n=5))
+        # Aggregate by week; compute growth values 
+        # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
+        growthPerWeek(upc_df)
+    
+        
+        print("\n\n")
 
-    # Growth calculated
-    calculateGrowth(trans_df0_weeks[0])
+
+        
 
 
 
