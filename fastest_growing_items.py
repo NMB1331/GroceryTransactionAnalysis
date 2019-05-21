@@ -81,7 +81,7 @@ def buildUPCDataFrames(transaction_df):
 
 # Function that computes the growth coefficient for a given dataframe
 def calculateGrowth(df):
-    upc = df['UPC'].unique()[0]
+    upc = df['UPC'].iloc[0]
 
     # Regression X values computed here (days since first date)
     earliest_date = df.index.min()
@@ -99,20 +99,28 @@ def calculateGrowth(df):
     df['X_Min_Mean_Sqrd'] = (df['X'] - x_mean) ** 2
     df['Y_Min_Mean'] = df['Quantity'] - y_mean
     df['(Xi-X)(Yi-Y)'] = df['X_Min_Mean'] * df['Y_Min_Mean']
-    reg_coef = sum(df['(Xi-X)(Yi-Y)']) / sum(df['X_Min_Mean_Sqrd'])
-    #print("Growth rate for {}: {}".format(upc, reg_coef))
-    return upc, reg_coef
+    try:
+        reg_coef = sum(df['(Xi-X)(Yi-Y)']) / sum(df['X_Min_Mean_Sqrd'])
+        #print("Growth rate for {}: {}".format(upc, reg_coef))
+        return upc, reg_coef
+    except:
+        print("Error calculating regression coefficient")
+        return upc, 0
 
 
 # Function that computes growth per week
+# TODO: If there is only like one row per week, just skip
 def growthPerWeek(upc_df):
     upc_df_weeks = aggByTime(upc_df, 'W')
     counter = 1
     for week_df in upc_df_weeks:
-        # Growth calculated
-        upc, growth = calculateGrowth(week_df)
-        print("Growth for UPC {} during week {}: {:.2f}%".format(upc, counter, growth*100))
-        counter += 1
+        if len(week_df) < 3:
+            print("Not enough rows to calculate.")
+        else:
+            # Growth calculated
+            upc, growth = calculateGrowth(week_df)
+            print("Growth for UPC {} during week {}: {}".format(upc, counter, growth))
+            counter += 1
 
 
 # Function that computes the growth per month
@@ -120,10 +128,13 @@ def growthPerMonth(upc_df):
     upc_df_month = aggByTime(upc_df, 'M')
     counter = 1
     for month_df in upc_df_month:
-        # Growth calculated
-        upc, growth = calculateGrowth(month_df)
-        print("Growth for UPC {} during month {}: {:.2f}%".format(upc, counter, growth*100))
-        counter += 1
+        if len(month_df) < 3:
+            print("Not enough rows to calculate.")
+        else:
+            # Growth calculated
+            upc, growth = calculateGrowth(month_df)
+            print("Growth for UPC {} during month {}: {}".format(upc, counter, growth))
+            counter += 1
 
 
 # Function that computes growth per year
@@ -131,10 +142,13 @@ def growthPerYear(upc_df):
     upc_df_years = aggByTime(upc_df, 'Y')
     counter = 1
     for year_df in upc_df_years:
-        # Growth calculated
-        upc, growth = calculateGrowth(year_df)
-        print("Growth for UPC {} during year {}: {:.2f}".format(upc, counter, growth*100))
-        counter += 1
+        if len(year_df) < 3:
+            print("Not enough rows to calculate.")
+        else:
+            # Growth calculated
+            upc, growth = calculateGrowth(year_df)
+            print("Growth for UPC {} during year {}: {}".format(upc, counter, growth)) # {:.2f}%
+            counter += 1
 
 
 
@@ -148,15 +162,19 @@ if __name__ == "__main__":
 
     for upc_df in transaction_df_list:
         # For debugging
-        #print(upc_df.head(n=5))
+        print(upc_df.head(n=10))
+
+        # Aggregate by week; compute growth values 
+        # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
+        growthPerWeek(upc_df)
 
         # Aggregate by month; compute growth values 
         # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
         growthPerMonth(upc_df)
 
-        # Aggregate by week; compute growth values 
+        # Aggregate by year; compute growth values 
         # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
-        growthPerWeek(upc_df)
+        growthPerYear(upc_df)
     
         
         print("\n\n")
