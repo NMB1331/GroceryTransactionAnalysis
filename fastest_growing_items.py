@@ -21,6 +21,7 @@ import datetime
 import time
 
 
+
 ######################################## PRE-PROCESSING ############################################
 
 # GET OUR COMMAND LINE ARGUEMENTS
@@ -108,57 +109,37 @@ def calculateGrowth(df):
 
 # Function that computes growth per week
 # TODO: If there is only like one row per week, just skip
-def growthPerWeek(upc, upc_df):
-    upc_df_weeks = aggByTime(upc_df, 'W')
+def growthPerTime(upc, upc_df, time_period):
+    upc_df_split = aggByTime(upc_df, time_period)
     counter = 1
-    week_growth = []
-    for week_df in upc_df_weeks:
-        if len(week_df) < 3:
-            #print("Not enough rows to calculate.")
-            week_growth.append("N/A")
+    growths = {}
+    for df in upc_df_split:
+        if len(df) < 3:
+            print("Not enough rows to calculate.")
+            growths[counter] = "N/A"
+            counter += 1
         else:
             # Growth calculated
-            growth = calculateGrowth(week_df)
-            #print("Growth for UPC {} during week {}: {}".format(upc, counter, growth))
+            growth = calculateGrowth(df)
+            print("Growth for UPC {} during {} {}: {}".format(upc, counter, time_period, growth))
             counter += 1
-            week_growth.append(growth)
-    return week_growth
+            growths[counter] = growth
+    return growths
 
 
-# Function that computes the growth per month
-def growthPerMonth(upc, upc_df):
-    upc_df_month = aggByTime(upc_df, 'M')
-    counter = 1
-    month_growth = []
-    for month_df in upc_df_month:
-        if len(month_df) < 3:
-            #print("Not enough rows to calculate.")
-            month_growth.append("N/A")
-        else:
-            # Growth calculated
-            growth = calculateGrowth(month_df)
-            #print("Growth for UPC {} during month {}: {}".format(upc, counter, growth))
-            counter += 1
-            month_growth.append(growth)
-    return month_growth
+# Function that makes sure each growth array has 24 entries
+def fillArray(g_arr):
+    while len(g_arr) < 25:
+        g_arr.append("N/A")
+    return g_arr
 
 
-# Function that computes growth per year
-def growthPerYear(upc, upc_df):
-    upc_df_years = aggByTime(upc_df, 'Y')
-    counter = 1
-    year_growth = []
-    for year_df in upc_df_years:
-        if len(year_df) < 3:
-            #print("Not enough rows to calculate.")
-            year_growth.append("N/A")
-        else:
-            # Growth calculated
-            growth = calculateGrowth(year_df)
-            #print("Growth for UPC {} during year {}: {}".format(upc, counter, growth)) # {:.2f}%
-            counter += 1
-            year_growth.append(growth)
-    return year_growth
+# Function that writes growths to a file
+def writeToFile(upc, growth_list, outfile_path):
+    with open(outfile_path, 'a') as outfile:
+        wr = csv.writer(outfile)
+        wr.writerow(growth_list) 
+    outfile.close()
 
 
 
@@ -177,20 +158,19 @@ if __name__ == "__main__":
 
         # Aggregate by week; compute growth values 
         # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
-        week_growths = growthPerWeek(upc, upc_df)
+        #week_growths = growthPerWeek(upc, upc_df)
 
         # Aggregate by month; compute growth values 
         # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
-        month_growths = growthPerMonth(upc, upc_df)
+        month_growths = growthPerTime(upc, upc_df, 'M')
 
         # Aggregate by year; compute growth values 
         # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
-        year_growths = growthPerYear(upc, upc_df)
+        #year_growths = growthPerYear(upc, upc_df)
 
-        # For debugging:
-        print("Week growths for UPC {}: {}".format(upc, week_growths[0:12]))
-        print("Month growths for UPC {}: {}".format(upc, month_growths[0:3]))
-        print("Year growths for UPC {}: {}".format(upc, year_growths))
+        # TODO: Implement this function: make dict into pandas dataframe, and then write to file database-style
+        #       (Columns = UPC and month numbers, rows = UPC and growths for that month)
+        writeToFile(upc, month_growths, 'monthly_growths.csv')
     
         
         print("\n\n")
