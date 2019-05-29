@@ -161,6 +161,7 @@ if __name__ == "__main__":
     for upc_df in transaction_df_list:
         # Get the current UPC
         upc = upc_df['UPC'].iloc[0]
+        print("Computing growth for UPC {}...".format(upc), end ="")
 
         # Aggregate by week; compute growth values 
         # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
@@ -178,19 +179,20 @@ if __name__ == "__main__":
         # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
         year_growths = growthPerTime(upc, upc_df, 'Y')
         year_growths["UPC"] = upc
-        year_growth_list.append(month_growths)
+        year_growth_list.append(year_growths)
+        print("Done!")
     
     # Write the computed growths to an outfile (month, in this case)
     filled_week_dict, columns = fillMissingKeys(week_growth_list)
-    writeToFile(upc, filled_week_dict, 'weekly_growths.csv', columns)
+    writeToFile(upc, filled_week_dict, 'Results/weekly_growths.csv', columns)
 
     # Write the computed growths to an outfile (month, in this case)
     filled_month_dict, columns = fillMissingKeys(month_growth_list)
-    writeToFile(upc, filled_month_dict, 'monthly_growths.csv', columns)
+    writeToFile(upc, filled_month_dict, 'Results/monthly_growths.csv', columns)
 
     # Write the computed growths to an outfile (month, in this case)
     filled_year_dict, columns = fillMissingKeys(year_growth_list)
-    writeToFile(upc, filled_year_dict, 'yearly_growths.csv', columns)
+    writeToFile(upc, filled_year_dict, 'Results/yearly_growths.csv', columns)
     
         
     
