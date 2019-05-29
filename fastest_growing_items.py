@@ -147,12 +147,13 @@ def fillMissingKeys2(L):
     
 
 # Function that writes growths to a file
-def writeToFile(upc, growth_list, outfile_path):
+def writeToFile(upc, growth_list, outfile_path, columns):
     with open(outfile_path, 'a') as outfile:
-        wr = csv.writer(outfile)
+        wr = csv.DictWriter(outfile, fieldnames=columns)
+        wr.writeheader()
         for row in growth_list:
             #print(row.values())
-            wr.writerow(row.values()) 
+            wr.writerow(row) 
     outfile.close()
 
 
@@ -179,15 +180,18 @@ if __name__ == "__main__":
         # Aggregate by month; compute growth values 
         # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
         month_growths = growthPerTime(upc, upc_df, 'M')
-        print("UPC: {}".format(upc))
+        #print("UPC: {}".format(upc))
         month_growths["UPC"] = upc
         growths_list.append(month_growths)
-        print(month_growths)
-        print("\n\n")
+        #print(month_growths)
+        #print("\n\n")
         
         #### FOR DEBUGGING ###
         if counter % 10 == 0:
-            writeToFile(upc, fillMissingKeys(growths_list), 'monthly_growths.csv')
+            #filled_dict, columns = fillMissingKeys(growths_list)
+            #print(columns)
+            #writeToFile(upc, filled_dict, 'monthly_growths.csv', columns)
+            break
 
         # Aggregate by year; compute growth values 
         # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
@@ -195,7 +199,9 @@ if __name__ == "__main__":
 
     # TODO: Implement this function: make dict into pandas dataframe, and then write to file database-style
     #       (Columns = UPC and month numbers, rows = UPC and growths for that month)
-    writeToFile(upc, fillMissingKeys(growths_list), 'monthly_growths.csv')
+    filled_dict, columns = fillMissingKeys(growths_list)
+    print(columns)
+    writeToFile(upc, filled_dict, 'monthly_growths.csv', columns)
     
         
     
