@@ -19,6 +19,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import datetime
 import time
+import collections
 
 
 
@@ -121,24 +122,37 @@ def growthPerTime(upc, upc_df, time_period):
         else:
             # Growth calculated
             growth = calculateGrowth(df)
-            print("Growth for UPC {} during {} {}: {}".format(upc, counter, time_period, growth))
+            #print("Growth for UPC {} during {} {}: {}".format(upc, counter, time_period, growth))
             counter += 1
             growths[counter] = growth
     return growths
 
 
 # Function that makes sure each growth array has 24 entries
-def fillArray(g_arr):
-    while len(g_arr) < 25:
-        g_arr.append("N/A")
-    return g_arr
+def fillMissingKeys(growth_dict_list):
+    allkeys = frozenset().union(*growth_dict_list)
+    for i in growth_dict_list:
+        for j in allkeys:
+            if j not in i:
+                i[j]="N/A"
+    print(growth_dict_list)
+    return growth_dict_list, allkeys
 
+
+# Alternative solution to the above method
+def fillMissingKeys2(L):
+    max_key = max(max(d) for d in L)
+    empty = dict.fromkeys(range(max_key + 1), 'N/A')
+    return [dict(empty, **d) for d in L]
+    
 
 # Function that writes growths to a file
 def writeToFile(upc, growth_list, outfile_path):
     with open(outfile_path, 'a') as outfile:
         wr = csv.writer(outfile)
-        wr.writerow(growth_list) 
+        for row in growth_list:
+            #print(row.values())
+            wr.writerow(row.values()) 
     outfile.close()
 
 
@@ -150,10 +164,12 @@ if __name__ == "__main__":
         "TERMINAL_NUMBER", "UPC", "ProductName", "CATEGORY" , "CATEGORY_SUB", "DEPT_KEY_Name", \
         "DEPT_MASTER_Name", "Quantity", "Price", "Sales", "DAY_KEY"]
     transaction_df_list = buildUPCDataFrames(buildDataFrame(datafile_paths, columns))
+    growths_list = []
 
-    for upc_df in transaction_df_list:
+    for upc_df, counter in zip(transaction_df_list, range(1, len(transaction_df_list))):
+        print("Counter: {}".format(counter))
         # For debugging
-        print(upc_df.head(n=10))
+        #print(upc_df.head(n=10))
         upc = upc_df['UPC'].iloc[0]
 
         # Aggregate by week; compute growth values 
@@ -163,17 +179,26 @@ if __name__ == "__main__":
         # Aggregate by month; compute growth values 
         # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
         month_growths = growthPerTime(upc, upc_df, 'M')
+        print("UPC: {}".format(upc))
+        month_growths["UPC"] = upc
+        growths_list.append(month_growths)
+        print(month_growths)
+        print("\n\n")
+        
+        #### FOR DEBUGGING ###
+        if counter % 10 == 0:
+            writeToFile(upc, fillMissingKeys(growths_list), 'monthly_growths.csv')
 
         # Aggregate by year; compute growth values 
         # TODO: THIS CAN BE SCALED BY PARALLELIZING HORIZONTALLY
         #year_growths = growthPerYear(upc, upc_df)
 
-        # TODO: Implement this function: make dict into pandas dataframe, and then write to file database-style
-        #       (Columns = UPC and month numbers, rows = UPC and growths for that month)
-        writeToFile(upc, month_growths, 'monthly_growths.csv')
+    # TODO: Implement this function: make dict into pandas dataframe, and then write to file database-style
+    #       (Columns = UPC and month numbers, rows = UPC and growths for that month)
+    writeToFile(upc, fillMissingKeys(growths_list), 'monthly_growths.csv')
     
         
-        print("\n\n")
+    
 
 
         
