@@ -31,7 +31,7 @@ print("Reading in files {}...".format(datafile_paths))
 def buildDataFrame(infile_list, columns):
     df = pd.concat([pd.read_csv(f, delimiter='|') for f in infile_list], ignore_index = True)
     df.columns = columns
-    df = pd.concat([df.iloc[:,1:3], df.iloc[:,7:8], df.iloc[:,13:16]], axis=1)
+    df = pd.concat([df.iloc[:,1:3], df.iloc[:,7:8], df.iloc[:,13:20]], axis=1)
     df = df.sort_values('TRANSACTION_ID')
     df['UPC'] = df['UPC'].astype('int64')
     df['Quantity'] = df['Quantity'].astype('int64')
@@ -46,7 +46,7 @@ def convertDate(earliest_date, row_date):
     #print(num_days.days)
     return num_days.days
 
-
+"""
 # Function that aggregates by a given amount of time (week = 'W', month = 'M')
 def aggByTime(df, time_period, reset=0):
     if reset:
@@ -55,6 +55,28 @@ def aggByTime(df, time_period, reset=0):
     else:
         agg_dfs = [g for n, g in df.set_index('Date').groupby(pd.Grouper(freq=time_period))]
         return agg_dfs
+"""
+
+# Function that aggregates RAW TRANSACTIONS by....quarter, or something. TBD
+#TODO: Raise the number of unique dates required
+def aggByTime(transaction_df, time_col):
+    # Dataframes that will be returned
+    time_dfs = []
+
+    # Gather a list of unique UPCs
+    items = transaction_df[time_col].unique()
+
+    # Make a dataframe for each UPC
+    for upc in items:
+        is_target = transaction_df[time_col] == upc
+        og_df = transaction_df[is_target]    #target_upc_df = og_upc_df.groupby('Date')
+        num_unique_dates = len(og_df.groupby('Date')['Date'].unique())
+        
+        # Add UPCs with enough dates to the list of valid ones
+        if num_unique_dates >= 2:
+            time_dfs.append(og_df)
+    
+    return time_dfs
     
 
 # Function that makes a dataset for each UPC
@@ -152,12 +174,15 @@ if __name__ == "__main__":
     # Data read into data frame; split up by UPC
     columns = ["StoreID", "TRANSACTION_ID", "Date", "TRANS_HOUR", "TRANS_MINUTE", "CASHIER_NUMBER", \
         "TERMINAL_NUMBER", "UPC", "ProductName", "CATEGORY" , "CATEGORY_SUB", "DEPT_KEY_Name", \
-        "DEPT_MASTER_Name", "Quantity", "Price", "Sales", "DAY_KEY"]
+        "DEPT_MASTER_Name", "Quantity", "Price", "Sales", "DAY_KEY", "FiscalMonth", "FiscalQtr", "FiscalYear"]
     transaction_df_list = buildUPCDataFrames(buildDataFrame(datafile_paths, columns))
+    print(transaction_df_list[0].head(n=10))
+    quarter_df_list = aggByTime(transaction_df_list[0], 'FiscalQtr')
+    print(quarter_df_list[0].head(n=20))
     week_growth_list = []
     month_growth_list = []
     year_growth_list = []
-
+"""
     for upc_df in transaction_df_list:
         # Get the current UPC
         upc = upc_df['UPC'].iloc[0]
@@ -193,7 +218,7 @@ if __name__ == "__main__":
     # Write the computed growths to an outfile (month, in this case)
     filled_year_dict, columns = fillMissingKeys(year_growth_list)
     writeToFile(upc, filled_year_dict, 'Results/yearly_growths.csv', columns)
-    
+"""
         
     
 
