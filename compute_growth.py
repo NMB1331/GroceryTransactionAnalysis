@@ -5,6 +5,9 @@ per week, month, and year for each UPC, and outputs a .csv file with the results
 Use: python compute_growth.py /path/to/transaction/file.csv
 
 TODO:
+- Figure out top selling UPCs for each quarter (use this logic to sum up quantity: practice_year_transactions = year_df_list[0].groupby(['UPC', pd.Grouper(key='FiscalYear', freq='D')]).sum().reset_index())
+- Now that dataframes for each quarter or whatever are made:
+    - Rows that have the same date need to be combined (or transaction ID? Either? I think date makes more sense)
 - Make function to plot graphs and trend lines
 - Figure out if its necessary (and how to) scale (parallelization, MapReduce, etc.)
 
@@ -48,6 +51,7 @@ def convertDate(earliest_date, row_date):
 
 """
 # Function that aggregates by a given amount of time (week = 'W', month = 'M')
+# This one is used for calendar time (week, month, year)
 def aggByTime(df, time_period, reset=0):
     if reset:
         agg_dfs = [g.reset_index() for n, g in df.set_index('Date').groupby(pd.Grouper(freq=time_period))]
@@ -57,7 +61,7 @@ def aggByTime(df, time_period, reset=0):
         return agg_dfs
 """
 
-# Function that aggregates RAW TRANSACTIONS by....quarter, or something. TBD
+# Function that aggregates RAW TRANSACTIONS by fiscal quarter, or month or whatever
 #TODO: Raise the number of unique dates required
 def aggByTime(transaction_df, time_col):
     # Dataframes that will be returned
@@ -73,13 +77,14 @@ def aggByTime(transaction_df, time_col):
         num_unique_dates = len(og_df.groupby('Date')['Date'].unique())
         
         # Add UPCs with enough dates to the list of valid ones
-        if num_unique_dates >= 2:
+        if num_unique_dates >= 5:
             time_dfs.append(og_df)
     
     return time_dfs
     
 
 # Function that makes a dataset for each UPC
+# NOTE: Line 98 parameter is SUPER IMPORTANT, are we tracking growth over the quarter per transaction, per date...?
 def buildUPCDataFrames(transaction_df):
     # Dataframes that will be returned
     upc_dfs = []
@@ -94,7 +99,7 @@ def buildUPCDataFrames(transaction_df):
         num_unique_dates = len(og_upc_df.groupby('Date')['Date'].unique())
         
         # Add UPCs with enough dates to the list of valid ones
-        if num_unique_dates > 5:
+        if num_unique_dates > 3:
             upc_dfs.append(og_upc_df)
     
     return upc_dfs
@@ -103,14 +108,13 @@ def buildUPCDataFrames(transaction_df):
 # Function that computes the growth coefficient for a given dataframe
 def calculateGrowth(df):
     # Regression X values computed here (days since first date)
-    earliest_date = df.index.min()
-    df.reset_index(level=0, inplace=True) #Reset the 'Date' column
+    earliest_date = df['Date'].min()
+    #df.reset_index(level=0, inplace=True) #Reset the 'Date' column
     df['X'] = df.apply(lambda x: convertDate(earliest_date, x['Date']), axis=1)
-    #print(og_upc_df.groupby('Date').head(n=10))
 
     # Regression coefficient computed here (least squares method, link below)
     #(https://stattrek.com/multiple-regression/regression-coefficients.aspx)
-    #og_upc_df.plot(x='X', y='Quantity', style='o')
+    #df.plot(x='X', y='Quantity', style='o')
     #plt.show(block=True)
     x_mean = df['X'].mean()
     y_mean = df['Quantity'].mean()
@@ -123,7 +127,7 @@ def calculateGrowth(df):
         #print("Growth rate for {}: {}".format(upc, reg_coef))
         return reg_coef
     except:
-        print("Error calculating regression coefficient")
+        print("Error calculating regression coefficient\n\n")
         return 'N/A'
 
 
@@ -134,14 +138,17 @@ def growthPerTime(upc, upc_df, time_period):
     counter = 1
     growths = {}
     for df in upc_df_split:
+        df = df.groupby(['UPC', pd.Grouper(key='Date', freq='D')]).sum().reset_index() # Sum up quantity over dates we want
+        df = df[['UPC', 'Date', 'Quantity']]
+        #print(df.head(n=10))
         if len(df) < 3:
-            #print("Not enough rows to calculate.")
+            print("Not enough rows to calculate.", end=" ")
             growths[counter] = "N/A"
             counter += 1
         else:
             # Growth calculated
             growth = calculateGrowth(df)
-            #print("Growth for UPC {} during {} {}: {}".format(upc, counter, time_period, growth))
+            #print("Growth for UPC {} during {} {}: {}".format(upc, counter, time_period, growth), end=" ")
             counter += 1
             growths[counter] = growth
     return growths
@@ -175,14 +182,27 @@ if __name__ == "__main__":
     columns = ["StoreID", "TRANSACTION_ID", "Date", "TRANS_HOUR", "TRANS_MINUTE", "CASHIER_NUMBER", \
         "TERMINAL_NUMBER", "UPC", "ProductName", "CATEGORY" , "CATEGORY_SUB", "DEPT_KEY_Name", \
         "DEPT_MASTER_Name", "Quantity", "Price", "Sales", "DAY_KEY", "FiscalMonth", "FiscalQtr", "FiscalYear"]
-    transaction_df_list = buildUPCDataFrames(buildDataFrame(datafile_paths, columns))
-    print(transaction_df_list[0].head(n=10))
-    quarter_df_list = aggByTime(transaction_df_list[0], 'FiscalQtr')
-    print(quarter_df_list[0].head(n=20))
+    loaded_df = buildDataFrame(datafile_paths, columns)
+    transaction_df_list = buildUPCDataFrames(loaded_df)
+    year_growth_list = []
+    for upc_df in transaction_df_list:
+        upc = upc_df['UPC'].iloc[0]
+        print("Calculating growth for UPC {}...".format(upc), end="")
+        year_growths = growthPerTime(upc, upc_df, 'FiscalYear')
+        year_growths["UPC"] = upc
+        year_growth_list.append(year_growths)
+        print("...Done!")
+        
+    
+"""
+year_df_list = aggByTime(transaction_df_list[0], 'FiscalYear')
+print(year_df_list[0].groupby('Date').head(n=82))
+practice_year_transactions = year_df_list[0].groupby(['UPC', pd.Grouper(key='Date', freq='D')]).sum().reset_index()
+#practice_year_transactions = year_df_list[0].groupby(['Date']).count().add_suffix('_Count').reset_index()
+print(practice_year_transactions.head(n=20))
     week_growth_list = []
     month_growth_list = []
     year_growth_list = []
-"""
     for upc_df in transaction_df_list:
         # Get the current UPC
         upc = upc_df['UPC'].iloc[0]
