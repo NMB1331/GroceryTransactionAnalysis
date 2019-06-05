@@ -9,13 +9,10 @@ TODO:
 
 Author: Nathaniel M. Burley
 """
-import sys, os, csv
-import heapq
 import pandas as pd
 import matplotlib.pyplot as plt
-import datetime
-import time
-import collections
+from collections import OrderedDict
+import sys, os, csv, datetime, time, collections
 
 
 
@@ -111,22 +108,18 @@ def growthPerTime(upc, upc_df, time_period):
     #upc_df_split = aggByTime(upc_df, time_period)
     upc_df_split = [upc_df]
     counter = 1
-    growths = {}
     for df in upc_df_split:
         df = df.groupby(['UPC', pd.Grouper(key='Date', freq='D')]).sum().reset_index() # Sum up quantity over dates we want
         df = df[['UPC', 'Date', 'Quantity']]
         #print(df.head(n=10))
         if len(df) < 3:
             print("Not enough rows to calculate.", end=" ")
-            growths[counter] = "N/A"
-            counter += 1
+            return "N/A"
         else:
             # Growth calculated
             growth = calculateGrowth(df)
             print("52 week growth for UPC {}: {}".format(upc, growth))
-            counter += 1
-            growths[counter] = growth
-    return growths
+            return growth
 
 
 # Function that makes sure each growth array has 24 entries
@@ -141,12 +134,13 @@ def fillMissingKeys(growth_dict_list):
     
 
 # Function that writes growths to a file
-def writeToFile(upc, growth_list, outfile_path, columns):
-    with open(outfile_path, 'a') as outfile:
-        wr = csv.DictWriter(outfile, fieldnames=columns)
-        wr.writeheader()
-        for row in growth_list:
-            wr.writerow(row) 
+# TODO: Figure out why it isn't actually opening and writing to the file...?
+def writeToFile(growth_list, outfile_path, columns):
+    with open(outfile_path, 'w+') as outfile:
+        print(("%s,%s\n"%columns))
+        outfile.write("%s,%s\n"%columns)
+        for k in growth_list.keys():
+            outfile.write("%d,%f\n"%(k,growth_list[k]))
     outfile.close()
 
 
@@ -159,10 +153,13 @@ if __name__ == "__main__":
         "DEPT_MASTER_Name", "Quantity", "Price", "Sales", "DAY_KEY", "FiscalMonth", "FiscalQtr", "FiscalYear"]
     loaded_df = buildDataFrame(datafile_paths, columns)
     transaction_df_list = buildUPCDataFrames(loaded_df)
-    year_growth_list = []
+    year_growth_dict = {}
+    # Growths computed for the most recent 52 weeks of data
     for upc_df in transaction_df_list:
         upc = upc_df['UPC'].iloc[0]
         print("Calculating growth for UPC {}...".format(upc), end="")
-        year_growths = growthPerTime(upc, upc_df, 'Week')
-        year_growths["UPC"] = upc
-        year_growth_list.append(year_growths)
+        year_growth = growthPerTime(upc, upc_df, 'Week')
+        year_growth_dict[upc] = year_growth
+    # Growths sorted
+    sorted_growths = dict(OrderedDict(sorted(year_growth_dict.items()))) # Possibly use something else to improve speed
+    writeToFile(sorted_growths, "52WeekGrowths.csv", ("UPC", "52WeekGrowth"))

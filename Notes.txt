@@ -1,4 +1,6 @@
 Things to do:
+- Test how well the current growth code will scale (memory will probably be the bottleneck)
 - Market Basket Analysis (items commonly purchased together)
 - Volume trends (patterns in high volume of sales) (think scheduling- when are we busy, when are we not?)
-- simple "growth" (think trending posts in social media) (10 fastest growing)
+- Alternating Least Squares (predict what customers will purchase based on past purchases)
+    https://dataplatform.cloud.ibm.com/exchange/public/entry/view/5ad1c820f57809ddec9a040e37b4af08
