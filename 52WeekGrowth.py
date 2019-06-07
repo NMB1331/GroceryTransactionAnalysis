@@ -1,11 +1,18 @@
 """
-This file takes a comma delimited csv file of transactions as an input, and computes the 52 week growths
-for each UPC, and outputs a .csv file with the results of the calculations
+This file takes a comma delimited csv file of transactions as an input, and computes the 52 week 
+growths for each UPC, and outputs a .csv file with the results of the calculations
 
 Use: python compute_growth.py /path/to/transaction/file.csv
 
 TODO:
-- Save the growths and sort the key value pairs to figure out fastest growing products
+- Remove all UPCs where their total number of transactions is below the median (possibly mean)
+- Figure out how to sort by GROWTHS for writing to the file. Not keys.
+- Try to implement parallelization, so each core is being used. The flow should be:
+    - Preprocess; make list of UPC dataframes
+    - Split that list into n other lists (n = number of cores)
+    - Then on each core, compute growths, and push the resulting UPC:Growth pair to list
+    - At the end, sort and write to outfile like normal
+    See this link for tips: https://stackoverflow.com/questions/45887641/running-python-on-multiple-cores
 
 Author: Nathaniel M. Burley
 """
