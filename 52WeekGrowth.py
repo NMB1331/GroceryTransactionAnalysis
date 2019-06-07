@@ -83,6 +83,30 @@ def buildUPCDataFrames(transaction_df):
     return upc_dfs
 
 
+# Function that computes the median number of transactions (or maybe mean down the road)
+#TODO: IMPLEMENT; TEST
+def medianNumTransactions(df):
+    pass
+
+
+# Function that drops UPC data frames from list if they have less than the median number of transactions
+#TODO: IMPLEMENT; TEST
+def dropUPCsBelowMedian(upc_df_list):
+    pass
+
+
+# Function that splits remaining UPC dataframes after pre-processing into n lists (n = num. CPU cores)
+#TODO: IMPLEMENT; TEST
+def buildParallelLists(upc_df_list):
+    pass
+
+
+# Function that computes growths for one of the lists; to be run in parallel
+#TODO: IMPLEMENT; TEST
+def computeGrowthsOnCore(upc_df_list):
+    pass
+
+
 # Function that computes the growth coefficient for a given dataframe
 def calculateGrowth(df):
     # Regression X values computed here (days since first date)
@@ -155,18 +179,22 @@ def writeToFile(growth_list, outfile_path, columns):
 ################################### CALCULATE FASTEST GROWING PRODUCTS #############################
 if __name__ == "__main__":
     # Data read into data frame; split up by UPC
+    #TODO: Split into num_cores lists; run growth calculations in parallel
     columns = ["StoreID", "TRANSACTION_ID", "Date", "TRANS_HOUR", "TRANS_MINUTE", "CASHIER_NUMBER", \
         "TERMINAL_NUMBER", "UPC", "ProductName", "CATEGORY" , "CATEGORY_SUB", "DEPT_KEY_Name", \
         "DEPT_MASTER_Name", "Quantity", "Price", "Sales", "DAY_KEY", "FiscalMonth", "FiscalQtr", "FiscalYear"]
     loaded_df = buildDataFrame(datafile_paths, columns)
     transaction_df_list = buildUPCDataFrames(loaded_df)
     year_growth_dict = {}
+
     # Growths computed for the most recent 52 weeks of data
+    #TODO: Push this into function; make it run in parallel on every CPU core
     for upc_df in transaction_df_list:
         upc = upc_df['UPC'].iloc[0]
         print("Calculating growth for UPC {}...".format(upc), end="")
         year_growth = growthPerTime(upc, upc_df, 'Week')
         year_growth_dict[upc] = year_growth
-    # Growths sorted
+
+    # Growths sorted; written to an outfile
     sorted_growths = dict(OrderedDict(sorted(year_growth_dict.items()))) # Possibly use something else to improve speed
     writeToFile(sorted_growths, "52WeekGrowths.csv", ("UPC", "52WeekGrowth"))
